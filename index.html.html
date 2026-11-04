@@ -244,6 +244,22 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
 .shot small{font-size:11px;opacity:.85}
 .shot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .shot.has span,.shot.has small{display:none}
+.zbtn{position:absolute;right:10px;bottom:10px;z-index:2;appearance:none;border:0;border-radius:999px;background:rgba(20,23,31,.78);color:#fff;font:700 14px/1 var(--font-body);padding:9px 14px;cursor:pointer;display:none}
+.shot.has .zbtn{display:inline-block}
+.zbtn:hover{background:rgba(20,23,31,.95)}
+.zbtn:focus-visible,.zclose:focus-visible,.znav:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.shot.has img{cursor:zoom-in}
+.zoomov{position:fixed;inset:0;z-index:9999;background:rgba(10,12,18,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:56px 72px 24px}
+.zoomov[hidden]{display:none}
+.zoomov img{max-width:100%;max-height:calc(100vh - 150px);object-fit:contain;border-radius:6px;background:#fff}
+.zcap{color:#fff;text-align:center;font-size:16px;line-height:1.5}
+.zcap small{display:block;color:#b9c0d0;font-size:13px}
+.zclose,.znav{position:absolute;appearance:none;border:0;border-radius:999px;background:rgba(255,255,255,.16);color:#fff;font:700 26px/1 var(--font-body);width:48px;height:48px;cursor:pointer}
+.zclose:hover,.znav:hover{background:rgba(255,255,255,.3)}
+.zclose{top:14px;right:14px}
+.znav{top:50%;transform:translateY(-50%)}
+.znav.prev{left:12px}.znav.next{right:12px}
+@media(max-width:640px){.zoomov{padding:56px 12px 16px}.znav{top:auto;bottom:14px;transform:none}}
 .artbody{padding:14px 16px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
 .arttag{font-size:12px;letter-spacing:.08em;color:var(--muted);font-weight:500}
 .art h3{font:400 24px/1.25 var(--font-display);margin:0}
@@ -1925,6 +1941,37 @@ function loadImg(slot,file,alt){
   slot.appendChild(img);
   next();
 }
+var zoomEl=null, zoomIdx=0, zoomBack=null;
+function zoomShow(i){
+  var n=ART.length; zoomIdx=(i+n)%n; var a=ART[zoomIdx];
+  var src=IMGS[a.file]; if(!src){ var t=document.querySelector('.art[data-id="'+a.id+'"] img'); src=t?t.src:''; }
+  var im=zoomEl.querySelector('img'); im.src=src; im.alt=a.title+' 사진 크게 보기';
+  var c=zoomEl.querySelector('.zcap'); c.textContent=''; c.appendChild(document.createTextNode(a.title+' · '+a.meta));
+  c.appendChild(mk('small',null,(zoomIdx+1)+' / '+n+'  (← → 키로 넘기기, Esc로 닫기)'));
+}
+function closeZoom(){ if(!zoomEl||zoomEl.hidden) return; zoomEl.hidden=true; document.body.style.overflow=''; if(zoomBack&&zoomBack.focus) zoomBack.focus(); }
+function openZoom(i,back){
+  if(!zoomEl){
+    zoomEl=mk('div','zoomov'); zoomEl.hidden=true; zoomEl.setAttribute('role','dialog'); zoomEl.setAttribute('aria-modal','true'); zoomEl.setAttribute('aria-label','작품 이미지 크게 보기');
+    var cl=mk('button','zclose','×'); cl.type='button'; cl.setAttribute('aria-label','닫기'); cl.addEventListener('click',closeZoom);
+    var pv=mk('button','znav prev','‹'); pv.type='button'; pv.setAttribute('aria-label','이전 작품'); pv.addEventListener('click',function(e){e.stopPropagation();zoomShow(zoomIdx-1)});
+    var nx=mk('button','znav next','›'); nx.type='button'; nx.setAttribute('aria-label','다음 작품'); nx.addEventListener('click',function(e){e.stopPropagation();zoomShow(zoomIdx+1)});
+    zoomEl.appendChild(cl); zoomEl.appendChild(pv); zoomEl.appendChild(document.createElement('img')); zoomEl.appendChild(mk('div','zcap')); zoomEl.appendChild(nx);
+    zoomEl.addEventListener('click',function(e){ if(e.target===zoomEl||e.target.className==='zcap') closeZoom(); });
+    var sx=null;
+    zoomEl.addEventListener('touchstart',function(e){sx=e.touches[0].clientX},{passive:true});
+    zoomEl.addEventListener('touchend',function(e){ if(sx==null) return; var d=e.changedTouches[0].clientX-sx; sx=null; if(Math.abs(d)>50) zoomShow(zoomIdx+(d<0?1:-1)); });
+    document.addEventListener('keydown',function(e){
+      if(zoomEl.hidden) return;
+      if(e.key==='Escape') closeZoom();
+      else if(e.key==='ArrowLeft') zoomShow(zoomIdx-1);
+      else if(e.key==='ArrowRight') zoomShow(zoomIdx+1);
+    });
+    document.body.appendChild(zoomEl);
+  }
+  zoomBack=back||null; zoomShow(i); zoomEl.hidden=false; document.body.style.overflow='hidden';
+  zoomEl.querySelector('.zclose').focus();
+}
 function buildGallery(){
   var gal=$('#gal'); gal.textContent='';
   ART.forEach(function(a){
@@ -1956,6 +2003,13 @@ function buildGallery(){
     if(a.credit) body.appendChild(mk('p','credit',a.credit));
     card.appendChild(body);
     gal.appendChild(card);
+    (function(art){
+      var zb=mk('button','zbtn','🔍 이미지 크게 보기'); zb.type='button';
+      zb.setAttribute('aria-label',art.title+' 이미지 크게 보기');
+      zb.addEventListener('click',function(){ openZoom(ART.indexOf(art),zb); });
+      shot.appendChild(zb);
+      shot.addEventListener('click',function(e){ if(e.target.tagName==='IMG') openZoom(ART.indexOf(art),zb); });
+    })(a);
     loadImg(shot,a.file,a.title+' 사진');
   });
 }
